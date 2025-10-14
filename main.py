@@ -171,6 +171,143 @@ def main():
     print("Matriz final:")
     print(matriz_final)
 
+    # --- Comprobaciones posteriores a Gauss-Jordan (interpretación de la RREF) ---
+    print("\n=== Comprobaciones y verificación de la solución ===")
+    resultado = analizar_y_resolver_desde_rref(
+        matriz_final,
+        matriz_base,  # A original
+        matriz_con_los_valores_de_resultado,  # b original
+        tolerancia=1e-10,
+        verbose=True  # pon False si no quieres los prints
+    )
+    # 'resultado' conserva los datos por si quieres usarlos programáticamente.
+
+
+import numpy as np
+
+def analizar_y_resolver_desde_rref(matriz_aumentada, A, b, tolerancia=1e-10, verbose=True):
+    """
+    Interpreta la RREF de [A|b] y realiza comprobaciones:
+    - Detecta inconsistencia (sin solución)
+    - Distingue solución única vs. infinitas soluciones
+    - Construye solución particular y base del núcleo cuando hay infinitas
+    - Calcula normas de residuo para verificar Ax≈b
+    Devuelve un diccionario con la información anterior.
+    """
+    n_filas, n_cols = matriz_aumentada.shape
+    n = n_cols - 1  # número de variables
+
+    # Bloque izquierdo (A reducida) y término independiente
+    L = matriz_aumentada[:, :n]
+    rhs = matriz_aumentada[:, n]
+
+    # --- 1) Comprobar inconsistencia: fila izquierda ~0 pero rhs ≠ 0 ---
+    filas_inconsistentes = [
+        i for i in range(n_filas)
+        if np.all(np.abs(L[i]) < tolerancia) and abs(rhs[i]) > tolerancia
+    ]
+    if filas_inconsistentes:
+        rankA = int(np.linalg.matrix_rank(A))
+        rankAug = int(np.linalg.matrix_rank(np.column_stack((A, b))))
+        if verbose:
+            print("Sistema inconsistente. Filas conflictivas:", filas_inconsistentes)
+            print(f"rango(A)={rankA}, rango([A|b])={rankAug}")
+        return {
+            "estado": "inconsistente",
+            "filas_conflictivas": filas_inconsistentes,
+            "rango_A": rankA,
+            "rango_Aum": rankAug,
+        }
+
+    # --- 2) Identificar columnas pivote (primera entrada no nula por fila) ---
+    filas_pivote = []
+    cols_pivote = []
+    for i in range(n_filas):
+        nz = np.where(np.abs(L[i]) > tolerancia)[0]
+        if nz.size > 0:
+            j = nz[0]
+            if j not in cols_pivote:  # evitar duplicados por tolerancias
+                cols_pivote.append(j)
+                filas_pivote.append(i)
+
+    rankA = int(np.linalg.matrix_rank(A))
+    rankAug = int(np.linalg.matrix_rank(np.column_stack((A, b))))
+
+    # --- 3) Solución única si hay pivote en todas las variables ---
+    if len(cols_pivote) == n:
+        # En RREF ideal: la solución está en la última columna
+        x = rhs.copy()
+        residuo = A.dot(x) - b
+        norma_residuo = float(np.linalg.norm(residuo, ord=2))
+
+        info = {
+            "estado": "única",
+            "x": x,
+            "rango_A": rankA,
+            "rango_Aum": rankAug,
+            "norma_residuo": norma_residuo,
+        }
+
+        # Comprobación cruzada con solve (si A es no singular)
+        try:
+            x_np = np.linalg.solve(A, b)
+            diff = float(np.linalg.norm(x - x_np, ord=2))
+            info["x_numpy"] = x_np
+            info["diferencia_vs_numpy"] = diff
+        except np.linalg.LinAlgError:
+            pass
+
+        if verbose:
+            print("\n[Comprobaciones] Solución única detectada.")
+            print("x =", x)
+            print("||A x - b||_2 =", norma_residuo)
+            if "x_numpy" in info:
+                print("||x - solve||_2 =", info["diferencia_vs_numpy"])
+            print(f"rango(A)={rankA}, rango([A|b])={rankAug}")
+        return info
+
+    # --- 4) Infinitas soluciones (rang(A) < n): construir x_p y base del núcleo ---
+    vars_libres = [j for j in range(n) if j not in cols_pivote]
+
+    # Solución particular: fijar libres=0 y leer pivotes de rhs
+    x_particular = np.zeros(n, dtype=float)
+    for r, c in zip(filas_pivote, cols_pivote):
+        x_particular[c] = rhs[r]
+
+    # Base del núcleo: para cada libre f, vector con x_f=1 y pivotes = -coeficientes en L
+    base_nucleo = []
+    for f in vars_libres:
+        v = np.zeros(n, dtype=float)
+        v[f] = 1.0
+        for r, c in zip(filas_pivote, cols_pivote):
+            v[c] = -L[r, f]
+        base_nucleo.append(v)
+
+    # Residuo de la solución particular (debe ser pequeño si la RREF es correcta)
+    residuo_p = A.dot(x_particular) - b
+    norma_residuo_p = float(np.linalg.norm(residuo_p, ord=2))
+
+    if verbose:
+        print("\n[Comprobaciones] Infinitas soluciones.")
+        print("x_particular =", x_particular)
+        print("||A x_p - b||_2 =", norma_residuo_p)
+        print("Variables libres (índices) =", vars_libres)
+        if base_nucleo:
+            print("Base del núcleo (cada vector genera el subespacio de soluciones):")
+            for k, vec in enumerate(base_nucleo):
+                print(f"  v[{k}] =", vec)
+        print(f"rango(A)={rankA}, rango([A|b])={rankAug}")
+
+    return {
+        "estado": "infinitas",
+        "x_particular": x_particular,
+        "base_nucleo": base_nucleo,
+        "vars_libres": vars_libres,
+        "rango_A": rankA,
+        "rango_Aum": rankAug,
+        "norma_residuo_particular": norma_residuo_p,
+    }
+
 
 if __name__ == "__main__":
     main()
