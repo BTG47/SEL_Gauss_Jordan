@@ -157,17 +157,31 @@ def gaussJordan(matriz_base, matriz_resultados, tamano, tolerancia=1e-10):
 
     return matriz_aumentada
 
+def obtenerDeterminante(matriz, tolerancia= 1e-10):
+    determinante_de_la_matriz = np.linalg.det(matriz)
+    if abs(determinante_de_la_matriz) < tolerancia:
+        determinante_de_la_matriz = 0
+    mensaje =f"EL determinante es igual a {determinante_de_la_matriz}\n"
+    if (determinante_de_la_matriz != 0):
+        mensaje +="Con base a este valor, es de única solución"
+    else:
+        mensaje += "Ya que es igual el determinante es igual a 0, es de ninguna o infinitas soluciones"
+    return mensaje
 
 def main():
     tamano = 4
+    TOLERANCIA = 1e-10
     matriz_base = np.array(
         [[-0.35, 0.3, 0.3, 0.2], [0.1, -0.9, 0.15, 0.1], [0.25, 0.35, -0.85, 0.3], [0, 0.25, 0.4, -0.6]], dtype=float)
     matriz_con_los_valores_de_resultado = np.array([0, 0, 0, 0], dtype=float)
     matriz_aumentada = np.column_stack(
         (matriz_base, matriz_con_los_valores_de_resultado))
+    #Obtener el determinante y devolverlo
+    print(obtenerDeterminante(matriz_base, TOLERANCIA))
+    
     print(matriz_aumentada)
     matriz_final = gaussJordan(
-        matriz_base, matriz_con_los_valores_de_resultado, tamano, 1e-10)
+        matriz_base, matriz_con_los_valores_de_resultado, tamano, TOLERANCIA)
     print("Matriz final:")
     print(matriz_final)
 
@@ -181,9 +195,6 @@ def main():
         verbose=True  # pon False si no quieres los prints
     )
     # 'resultado' conserva los datos por si quieres usarlos programáticamente.
-
-
-import numpy as np
 
 def analizar_y_resolver_desde_rref(matriz_aumentada, A, b, tolerancia=1e-10, verbose=True):
     """
