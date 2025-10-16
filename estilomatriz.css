@@ -1,0 +1,196 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+.container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.input-section {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+label {
+    font-weight: bold;
+}
+
+input[type="number"] {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 80px;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+.matrix-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+    overflow-x: auto;
+}
+
+.matrix-row {
+    display: flex;
+    margin-bottom: 5px;
+}
+
+.matrix-cell {
+    width: 80px;
+    height: 40px;
+    margin: 0 5px;
+    text-align: center;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.matrix-label {
+    font-weight: bold;
+    margin: 0 10px;
+    align-self: center;
+    font-size: 1.2em;
+}
+
+.output-section {
+    margin-top: 30px;
+    padding: 15px;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    display: none;
+}
+
+.solution {
+    font-weight: bold;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.unique {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.infinite {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.none {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.matrix-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.vector-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.vector-cell {
+    width: 80px;
+    height: 40px;
+    margin: 5px 0;
+    text-align: center;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.equation {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.instructions {
+    background-color: #e8f4fc;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+}
+
+.example {
+    font-style: italic;
+    color: #666;
+    margin-top: 5px;
+}
+
+.steps-container {
+    margin-top: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.step {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.step-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.matrix-display {
+    font-family: monospace;
+    white-space: pre;
+    background-color: white;
+    padding: 5px;
+    border-radius: 4px;
+    overflow-x: auto;
+}
