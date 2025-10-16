@@ -423,10 +423,44 @@
         
         // Función para obtener el determinante
         function obtenerDeterminante(matriz) {
-            // Implementación simplificada del determinante
             let n = matriz.length;
+            let det = 0;
+            
+            if (n === 1) {
+                det = matriz[0][0];
+            } else if (n === 2) {
+                det = matriz[0][0] * matriz[1][1] - matriz[0][1] * matriz[1][0];
+            } else if (n === 3) {
+                // Regla de Sarrus
+                det = matriz[0][0]*matriz[1][1]*matriz[2][2] +
+                    matriz[0][1]*matriz[1][2]*matriz[2][0] +
+                    matriz[0][2]*matriz[1][0]*matriz[2][1] -
+                    matriz[0][2]*matriz[1][1]*matriz[2][0] -
+                    matriz[0][1]*matriz[1][0]*matriz[2][2] -
+                    matriz[0][0]*matriz[1][2]*matriz[2][1];
+            } else {
+                // Para matrices 4x4 o mayores - método recursivo simple
+                det = calcularDetRecursivo(matriz);
+            }
+            
+            // Limpiar errores numéricos
+            if (Math.abs(det) < 1e-10) det = 0;
+            
+            let mensaje = `El determinante es igual a ${det.toFixed(6)}\n`;
+            if (det !== 0) {
+                mensaje += "Con base a este valor, es de única solución";
+            } else {
+                mensaje += "Ya que el determinante es igual a 0, es de ninguna o infinitas soluciones";
+            }
+            return mensaje;
+        }
+
+        // Función auxiliar recursiva para matrices grandes
+        function calcularDetRecursivo(matriz) {
+            let n = matriz.length;
+            
             if (n === 1) return matriz[0][0];
-            if (n === 2) return matriz[0][0] * matriz[1][1] - matriz[0][1] * matriz[1][0];
+            if (n === 2) return matriz[0][0]*matriz[1][1] - matriz[0][1]*matriz[1][0];
             
             let det = 0;
             for (let j = 0; j < n; j++) {
@@ -438,16 +472,10 @@
                     }
                     submatriz.push(fila);
                 }
-                det += matriz[0][j] * Math.pow(-1, j) * obtenerDeterminante(submatriz);
+                let sign = (j % 2 === 0) ? 1 : -1;
+                det += sign * matriz[0][j] * calcularDetRecursivo(submatriz);
             }
-            
-            let mensaje = `El determinante es igual a ${det.toFixed(6)}\n`;
-            if (det !== 0) {
-                mensaje += "Con base a este valor, es de única solución";
-            } else {
-                mensaje += "Ya que el determinante es igual a 0, es de ninguna o infinitas soluciones";
-            }
-            return mensaje;
+            return det;
         }
         
         // Función para analizar la solución desde la RREF
