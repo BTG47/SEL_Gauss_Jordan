@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resolvedor de Sistemas de Ecuaciones</title>
+    <link rel="stylesheet" href="estilomatriz.css">
+    <link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
+</head>
+<body>
+    <h1>XDD de Sistemas de Ecuaciones Lineales</h1>
+    
+    <div class="container">
+        <div class="input-section">
+            <div class="input-group">
+                <label for="matrixSize">Tamaño del sistema (n x n):</label>
+                <input type="number" id="matrixSize" min="1" max="10" value="3">
+                <button id="generateBtn">Generar Matrices</button>
+            </div>
+            
+            <div class="instructions">
+                <p>Ingresa los coeficientes de las ecuaciones en la matriz A y los términos independientes en el vector b.</p>
+            </div>   
+            <button id="clearBtn">Limpiar Todo</button>
+        </div>
+        
+        <div id="matrixSection" style="display: none;">
+            <div class="equation">
+                <div class="matrix-wrapper">
+                    <div id="matrixA" class="matrix-container"></div>
+                </div>
+                <div class="matrix-label"></div>
+                <div class="vector-wrapper">
+                    <div id="vectorX" class="matrix-container"></div>
+                </div>
+                <div class="matrix-label"></div>
+                <div class="vector-wrapper">
+                    <div id="vectorB" class="matrix-container"></div>
+                </div>
+            </div>
+            
+            <div class="input-section">
+                <button id="solveBtn">Resolver Sistema</button>
+                <button id="debugBtn" style="background-color: #6c757d;">Mostrar Datos</button>
+            </div>
+        </div>
+        
+        <div id="outputSection" class="output-section">
+            <div id="solutionText" class="solution"></div>
+            <div id="determinantText" class="solution" style="margin-top: 10px;"></div>
+        </div>
+        
+        <div id="stepsContainer" class="steps-container" style="display: none;">
+            <h3>Pasos de la Solución</h3>
+            <div id="stepsContent"></div>
+        </div>
+    </div>
+
+    <!-- Cargar Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+    
+    <script>
+        // Variables globales
+        let pyodide;
+        let pythonLoaded = false;
+
+        // Inicializar Pyodide
+        async function initializePyodide() {
+            try {
+                console.log("Cargando Pyodide...");
+                pyodide = await loadPyodide();
+                
+                // Instalar numpy
+                await pyodide.loadPackage("numpy");
+                console.log("Pyodide y numpy cargados correctamente");
+                
+                // Cargar el código Python
+                await loadPythonCode();
+                pythonLoaded = true;
+                
+                // Mostrar mensaje de que está listo
+                const solveBtn = document.getElementById('solveBtn');
+                solveBtn.disabled = false;
+                solveBtn.textContent = "Resolver Sistema";
+                
+            } catch (error) {
+                console.error("Error al cargar Pyodide:", error);
+                alert("Error al inicializar el entorno Python. Recarga la página.");
+            }
+        }
+
+        // Cargar el código Python
+        async function loadPythonCode() {
+            const pythonCode = `
+import numpy as np
+
+def moverFilas(matriz_aumentada, indice_del_pivote, indice_de_la_matriz):
+    fila_temporal = matriz_aumentada[indice_de_la_matriz].copy()
+    matriz_aumentada[indice_de_la_matriz] = matriz_aumentada[indice_del_pivote]
+    matriz_aumentada[indice_del_pivote] = fila_temporal
+    return matriz_aumentada
+
+def generar_columna_actual(matriz_aumentada, columna, tamano):
+    columna_actual = []
+    for i in range(tamano):
+        columna_actual.append(matriz_aumentada[i][columna])
+    return columna_actual
+
+def puntaje(valor_abs):
+    if valor_abs < 0.1:
+        return valor_abs * 0.1
+    elif valor_abs > 100:
+        return valor_abs * 0.5
+    else:
+        return valor_abs
+
+def obtener_pivote(columna, fila_actual, tolerancia):
+    sub_columna = columna[fila_actual:]
+    
+    # Caso 1: hay un 1 ideal
+    for i, valor in enumerate(sub_columna):
+        valor_actual = abs(valor) - 1.0
+        if abs(valor_actual) < tolerancia:
+            return fila_actual + i, valor
+
+    # Caso 2: enteros seguros
+    enteros_seguros = []
+    for i, valor in enumerate(sub_columna):
+        if abs(valor) > tolerancia:
+            if int(valor) and 0.5 < abs(valor) < 10:
+                enteros_seguros.append((fila_actual + i, valor, abs(valor)))
+
+    if enteros_seguros:
+        indice, valor_minimo, abs_minimo = min(enteros_seguros, key=lambda x: x[2])
+        return indice, valor_minimo
+
+    # Caso 3: sistema de puntajes
+    candidatos = []
+    for i, valor in enumerate(sub_columna):
+        if abs(valor) > tolerancia:
+            candidatos.append((fila_actual + i, valor, abs(valor)))
+            
+    if not candidatos:
+        return None, None
+
+    candidatos.sort(key=lambda x: puntaje(x[2]), reverse=True)
+    return candidatos[0][0], candidatos[0][1]
+
+def normalizar_pivote(matriz_aumentada, indice_del_pivote, valor_del_pivote):
+    matriz_aumentada[indice_del_pivote] = matriz_aumentada[indice_del_pivote] * (1/valor_del_pivote)
+    return matriz_aumentada
+
+def confirmar_posicion_del_pivote(matriz_aumentada, indice_del_pivote, columna_actual, numero_de_fila_o_columna_actual):
+    matriz_base = matriz_aumentada
+    if indice_del_pivote != numero_de_fila_o_columna_actual:
+        matriz_base = moverFilas(matriz_aumentada, indice_del_pivote, numero_de_fila_o_columna_actual)
+    return matriz_base
+
+def eliminar_el_resto_de_valores_tanto_arriba_como_abajo_del_pivote(matriz_aumentada, indice_del_pivote, numero_de_fila_o_columna_actual, tamano):
+    fila_del_pivote = matriz_aumentada[indice_del_pivote]
+    for i in range(tamano):
+        if i != indice_del_pivote:
+            valor_indice_de_esa_fila = matriz_aumentada[i][numero_de_fila_o_columna_actual]
+            matriz_aumentada[i] = matriz_aumentada[i] + (-valor_indice_de_esa_fila)*fila_del_pivote
+    return matriz_aumentada
+
+def limpiar_errores_numericos(matriz, tolerancia=1e-10):
+    return np.where(np.abs(matriz) < tolerancia, 0, matriz)
+
+def gaussJordan(matriz_base, matriz_resultados, tamano, tolerancia=1e-10):
+    matriz_base = matriz_base.astype(float)
+    matriz_resultados = matriz_resultados.astype(float)
+    matriz_aumentada = np.column_stack((matriz_base, matriz_resultados))
+    
+    steps = []
+    steps.append(f"Matriz aumentada inicial:\\n{np.array2string(matriz_aumentada, precision=4)}")
+
+    for n in range(tamano):
+        columna_actual = generar_columna_actual(matriz_aumentada, n, tamano)
+        indice_del_pivote, pivote_actual = obtener_pivote(columna_actual, n, tolerancia=tolerancia)
+        
+        if pivote_actual is None:
+            steps.append(f"Iteración {n+1}: No se encontró pivote en la columna {n+1}")
+            continue
+            
+        steps.append(f"Iteración {n+1}: Pivote encontrado en posición ({indice_del_pivote+1}, {n+1}) con valor {pivote_actual:.4f}")
+        
+        matriz_aumentada = confirmar_posicion_del_pivote(matriz_aumentada, indice_del_pivote, columna_actual, n)
+        steps.append(f"Después de posicionar pivote:\\n{np.array2string(matriz_aumentada, precision=4)}")
+        
+        matriz_aumentada = normalizar_pivote(matriz_aumentada, n, pivote_actual)
+        steps.append(f"Después de normalizar pivote:\\n{np.array2string(matriz_aumentada, precision=4)}")
+        
+        matriz_aumentada = eliminar_el_resto_de_valores_tanto_arriba_como_abajo_del_pivote(matriz_aumentada, n, n, tamano)
+        steps.append(f"Después de eliminación:\\n{np.array2string(matriz_aumentada, precision=4)}")
+        
+        matriz_aumentada = limpiar_errores_numericos(matriz_aumentada, tolerancia=tolerancia)
+        steps.append(f"Después de limpiar errores:\\n{np.array2string(matriz_aumentada, precision=4)}")
+
+    steps.append(f"Matriz final (RREF):\\n{np.array2string(matriz_aumentada, precision=4)}")
+    return matriz_aumentada, steps
+
+def obtenerDeterminante(matriz, tolerancia=1e-10):
+    determinante_de_la_matriz = np.linalg.det(matriz)
+    if abs(determinante_de_la_matriz) < tolerancia:
+        determinante_de_la_matriz = 0
+    mensaje = f"El determinante es igual a {determinante_de_la_matriz:.6f}\\n"
+    if determinante_de_la_matriz != 0:
+        mensaje += "Con base a este valor, es de única solución"
+    else:
+        mensaje += "Ya que el determinante es igual a 0, es de ninguna o infinitas soluciones"
+    return mensaje
+
+def analizar_y_resolver_desde_rref(matriz_aumentada, A, b, tolerancia=1e-10):
+    n_filas, n_cols = matriz_aumentada.shape
+    n = n_cols - 1
+
+    L = matriz_aumentada[:, :n]
+    rhs = matriz_aumentada[:, n]
+
+    # Comprobar inconsistencia
+    filas_inconsistentes = [
+        i for i in range(n_filas)
+        if np.all(np.abs(L[i]) < tolerancia) and abs(rhs[i]) > tolerancia
+    ]
+    
+    if filas_inconsistentes:
+        rankA = int(np.linalg.matrix_rank(A))
+        rankAug = int(np.linalg.matrix_rank(np.column_stack((A, b))))
+        return {
+            "estado": "inconsistente",
+            "filas_conflictivas": filas_inconsistentes,
+            "rango_A": rankA,
+            "rango_Aum": rankAug,
+        }
+
+    # Identificar columnas pivote
+    filas_pivote = []
+    cols_pivote = []
+    for i in range(n_filas):
+        nz = np.where(np.abs(L[i]) > tolerancia)[0]
+        if nz.size > 0:
+            j = nz[0]
+            if j not in cols_pivote:
+                cols_pivote.append(j)
+                filas_pivote.append(i)
+
+    rankA = int(np.linalg.matrix_rank(A))
+    rankAug = int(np.linalg.matrix_rank(np.column_stack((A, b))))
+
+    # Solución única
+    if len(cols_pivote) == n:
+        x = rhs.copy()
+        residuo = A.dot(x) - b
+        norma_residuo = float(np.linalg.norm(residuo, ord=2))
+
+        info = {
+            "estado": "única",
+            "x": x.tolist(),
+            "rango_A": rankA,
+            "rango_Aum": rankAug,
+            "norma_residuo": norma_residuo,
+        }
+
+        try:
+            x_np = np.linalg.solve(A, b)
+            diff = float(np.linalg.norm(x - x_np, ord=2))
+            info["x_numpy"] = x_np.tolist()
+            info["diferencia_vs_numpy"] = diff
+        except np.linalg.LinAlgError:
+            pass
+
+        return info
+
+    # Infinitas soluciones
+    vars_libres = [j for j in range(n) if j not in cols_pivote]
+
+    x_particular = np.zeros(n, dtype=float)
+    for r, c in zip(filas_pivote, cols_pivote):
+        x_particular[c] = rhs[r]
+
+    base_nucleo = []
+    for f in vars_libres:
+        v = np.zeros(n, dtype=float)
+        v[f] = 1.0
+        for r, c in zip(filas_pivote, cols_pivote):
+            v[c] = -L[r, f]
+        base_nucleo.append(v.tolist())
+
+    residuo_p = A.dot(x_particular) - b
+    norma_residuo_p = float(np.linalg.norm(residuo_p, ord=2))
+
+    return {
+        "estado": "infinitas",
+        "x_particular": x_particular.tolist(),
+        "base_nucleo": base_nucleo,
+        "vars_libres": vars_libres,
+        "rango_A": rankA,
+        "rango_Aum": rankAug,
+        "norma_residuo_particular": norma_residuo_p,
+    }
+
+def resolver_sistema(A, b, size):
+    try:
+        A_np = np.array(A)
+        b_np = np.array(b)
+        
+        # Calcular determinante
+        det_msg = obtenerDeterminante(A_np)
+        
+        # Aplicar Gauss-Jordan
+        matriz_final, steps = gaussJordan(A_np, b_np, size)
+        
+        # Analizar resultado
+        resultado = analizar_y_resolver_desde_rref(matriz_final, A_np, b_np)
+        resultado["determinante"] = det_msg
+        resultado["steps"] = steps
+        
+        return resultado
+    except Exception as e:
+        return {"error": str(e)}
+`;
+
+            // Ejecutar el código Python
+            await pyodide.runPythonAsync(pythonCode);
+            console.log("Código Python cargado correctamente");
+        }
+
+        // Función para generar la interfaz de matrices
+        function generateMatrix() {
+            const size = parseInt(document.getElementById('matrixSize').value);
+            
+            if (isNaN(size) || size < 1 || size > 10) {
+                alert('Por favor, ingresa un tamaño válido entre 1 y 10');
+                return;
+            }
+            
+            const matrixA = document.getElementById('matrixA');
+            const vectorX = document.getElementById('vectorX');
+            const vectorB = document.getElementById('vectorB');
+            
+            // Limpiar matrices existentes
+            matrixA.innerHTML = '';
+            vectorX.innerHTML = '';
+            vectorB.innerHTML = '';
+            
+            // Generar matriz A (coeficientes)
+            const matrixContainer = document.createElement('div');
+            matrixContainer.className = 'matrix-container';
+            
+            for (let i = 0; i < size; i++) {
+                const row = document.createElement('div');
+                row.className = 'matrix-row';
+                
+                for (let j = 0; j < size; j++) {
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.step = 'any';
+                    input.className = 'matrix-cell';
+                    input.placeholder = '0';
+                    input.id = `a${i}${j}`;
+                    // Valor por defecto para pruebas
+                    if (i === j) input.value = '1';
+                    row.appendChild(input);
+                }
+                
+                matrixContainer.appendChild(row);
+            }
+            
+            matrixA.appendChild(matrixContainer);
+            
+            // Generar vector X (incógnitas - solo visual)
+            const vectorXContainer = document.createElement('div');
+            vectorXContainer.className = 'matrix-container';
+            
+            for (let i = 0; i < size; i++) {
+                const row = document.createElement('div');
+                row.className = 'matrix-row';
+                
+                const label = document.createElement('div');
+                label.className = 'matrix-cell';
+                label.textContent = `x${i+1}`;
+                label.style.border = 'none';
+                label.style.fontWeight = 'bold';
+                label.style.backgroundColor = 'transparent';
+                row.appendChild(label);
+                
+                vectorXContainer.appendChild(row);
+            }
+            
+            vectorX.appendChild(vectorXContainer);
+            
+            // Generar vector B (términos independientes)
+            const vectorBContainer = document.createElement('div');
+            vectorBContainer.className = 'matrix-container';
+            
+            for (let i = 0; i < size; i++) {
+                const row = document.createElement('div');
+                row.className = 'matrix-row';
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = 'any';
+                input.className = 'vector-cell';
+                input.placeholder = '0';
+                input.id = `b${i}`;
+                // Valor por defecto para pruebas
+                input.value = (i + 1).toString();
+                row.appendChild(input);
+                
+                vectorBContainer.appendChild(row);
+            }
+            
+            vectorB.appendChild(vectorBContainer);
+            
+            // Mostrar la sección de matrices
+            document.getElementById('matrixSection').style.display = 'block';
+            document.getElementById('outputSection').style.display = 'none';
+            document.getElementById('stepsContainer').style.display = 'none';
+        }
+
+        // Función para obtener los datos de las matrices
+        function getMatrixData() {
+            const size = parseInt(document.getElementById('matrixSize').value);
+            
+            // Obtener valores de la matriz A
+            const A = [];
+            for (let i = 0; i < size; i++) {
+                const row = [];
+                for (let j = 0; j < size; j++) {
+                    const input = document.getElementById(`a${i}${j}`);
+                    const value = parseFloat(input.value);
+                    row.push(isNaN(value) ? 0 : value);
+                }
+                A.push(row);
+            }
+            
+            // Obtener valores del vector b
+            const b = [];
+            for (let i = 0; i < size; i++) {
+                const input = document.getElementById(`b${i}`);
+                const value = parseFloat(input.value);
+                b.push(isNaN(value) ? 0 : value);
+            }
+            
+            return { A, b, size };
+        }
+
+        // Función para limpiar todos los campos
+        function clearAllInputs() {
+            const size = parseInt(document.getElementById('matrixSize').value);
+            
+            // Limpiar matriz A
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    const input = document.getElementById(`a${i}${j}`);
+                    if (input) {
+                        input.value = '';
+                        input.style.borderColor = '#ddd';
+                    }
+                }
+            }
+            
+            // Limpiar vector b
+            for (let i = 0; i < size; i++) {
+                const input = document.getElementById(`b${i}`);
+                if (input) {
+                    input.value = '';
+                    input.style.borderColor = '#ddd';
+                }
+            }
+            
+            // Ocultar resultados
+            document.getElementById('outputSection').style.display = 'none';
+            document.getElementById('stepsContainer').style.display = 'none';
+        }
+
+        // Función para mostrar los datos en consola (para debugging)
+        function debugMatrixData() {
+            const { A, b, size } = getMatrixData();
+            
+            console.log('=== DATOS DE LAS MATRICES ===');
+            console.log('Matriz A:');
+            console.table(A);
+            console.log('Vector b:', b);
+            console.log('Tamaño:', size);
+            
+            // Mostrar en alerta también
+            let alertText = `Matriz A (${size}x${size}):\n`;
+            A.forEach(row => {
+                alertText += row.join('\t') + '\n';
+            });
+            alertText += `\nVector b:\n${b.join('\n')}`;
+            
+            alert(alertText);
+        }
+
+        // Función para resolver el sistema usando Python
+        async function solveSystem() {
+            if (!validateInputs()) return;
+            
+            if (!pythonLoaded) {
+                alert("El entorno Python aún no está listo. Por favor, espera un momento.");
+                return;
+            }
+            
+            const { A, b, size } = getMatrixData();
+            
+            // Mostrar indicador de carga
+            const solveBtn = document.getElementById('solveBtn');
+            solveBtn.disabled = true;
+            solveBtn.textContent = "Calculando...";
+            
+            try {
+                // Llamar a la función Python
+                const resolver = pyodide.globals.get('resolver_sistema');
+                const resultado = resolver(A, b, size);
+                
+                // Convertir el resultado a objeto JavaScript
+                const jsResult = resultado.toJs();
+                
+                // Mostrar resultados
+                displayResults(jsResult);
+            } catch (error) {
+                console.error("Error al resolver el sistema:", error);
+                alert("Error al resolver el sistema: " + error.message);
+            } finally {
+                // Restaurar el botón
+                solveBtn.disabled = false;
+                solveBtn.textContent = "Resolver Sistema";
+            }
+        }
+
+        // Función para mostrar resultados
+        function displayResults(result) {
+            const outputSection = document.getElementById('outputSection');
+            const solutionText = document.getElementById('solutionText');
+            const determinantText = document.getElementById('determinantText');
+            const stepsContainer = document.getElementById('stepsContainer');
+            const stepsContent = document.getElementById('stepsContent');
+            
+            // Limpiar resultados anteriores
+            solutionText.innerHTML = '';
+            determinantText.innerHTML = '';
+            stepsContent.innerHTML = '';
+            
+            // Mostrar tipo de solución
+            solutionText.className = 'solution';
+            
+            if (result.error) {
+                solutionText.textContent = `❌ Error: ${result.error}`;
+                solutionText.classList.add('none');
+                outputSection.style.display = 'block';
+                return;
+            }
+            
+            // Mostrar determinante
+            if (result.determinante) {
+                determinantText.textContent = result.determinante;
+                determinantText.className = 'solution';
+                if (result.determinante.includes("única solución")) {
+                    determinantText.classList.add('unique');
+                } else {
+                    determinantText.classList.add('infinite');
+                }
+            }
+            
+            // Mostrar tipo de solución
+            switch(result.estado) {
+                case 'única':
+                    solutionText.textContent = '✅ El sistema tiene una solución única.';
+                    solutionText.classList.add('unique');
+                    
+                    // Mostrar solución
+                    if (result.x) {
+                        const solutionDiv = document.createElement('div');
+                        solutionDiv.style.marginTop = '15px';
+                        solutionDiv.innerHTML = `<strong>Solución:</strong><br>${result.x.map((val, idx) => `x${idx+1} = ${val.toFixed(6)}`).join('<br>')}`;
+                        solutionText.appendChild(solutionDiv);
+                    }
+                    break;
+                    
+                case 'infinitas':
+                    solutionText.textContent = '∞ El sistema tiene infinitas soluciones.';
+                    solutionText.classList.add('infinite');
+                    
+                    // Mostrar solución particular y base del núcleo
+                    if (result.x_particular) {
+                        const particularDiv = document.createElement('div');
+                        particularDiv.style.marginTop = '15px';
+                        particularDiv.innerHTML = `<strong>Solución particular:</strong><br>${result.x_particular.map((val, idx) => `x${idx+1} = ${val.toFixed(6)}`).join('<br>')}`;
+                        solutionText.appendChild(particularDiv);
+                    }
+                    
+                    if (result.base_nucleo && result.base_nucleo.length > 0) {
+                        const baseDiv = document.createElement('div');
+                        baseDiv.style.marginTop = '15px';
+                        baseDiv.innerHTML = `<strong>Base del espacio solución (variables libres: ${result.vars_libres.map(v => `x${v+1}`).join(', ')}):</strong>`;
+                        
+                        result.base_nucleo.forEach((vec, idx) => {
+                            const vecDiv = document.createElement('div');
+                            vecDiv.innerHTML = `v${idx+1} = [${vec.map(v => v.toFixed(6)).join(', ')}]`;
+                            baseDiv.appendChild(vecDiv);
+                        });
+                        
+                        solutionText.appendChild(baseDiv);
+                    }
+                    break;
+                    
+                case 'inconsistente':
+                    solutionText.textContent = '❌ El sistema no tiene solución.';
+                    solutionText.classList.add('none');
+                    break;
+                    
+                default:
+                    solutionText.textContent = '❓ No se pudo determinar el tipo de solución.';
+                    solutionText.classList.add('none');
+            }
+            
+            // Mostrar pasos si existen
+            if (result.steps && result.steps.length > 0) {
+                stepsContent.innerHTML = '';
+                result.steps.forEach((step, index) => {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    
+                    // Formatear el paso (reemplazar saltos de línea)
+                    const formattedStep = step.replace(/\\n/g, '<br>');
+                    
+                    stepElement.innerHTML = `
+                        <div class="step-title">Paso ${index + 1}:</div>
+                        <div class="matrix-display">${formattedStep}</div>
+                    `;
+                    stepsContent.appendChild(stepElement);
+                });
+                stepsContainer.style.display = 'block';
+            }
+            
+            outputSection.style.display = 'block';
+        }
+
+        // Inicializar event listeners cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar Pyodide
+            initializePyodide();
+            
+            // Botón principal para generar matrices
+            document.getElementById('generateBtn').addEventListener('click', generateMatrix);
+            
+            // Botón para resolver el sistema
+            document.getElementById('solveBtn').addEventListener('click', function() {
+                if (validateInputs()) {
+                    solveSystem();
+                }
+            });
+            
+            // Botón para limpiar (si existe)
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', clearAllInputs);
+            }
+            
+            // Botón para cargar ejemplo (si existe)
+            const exampleBtn = document.getElementById('exampleBtn');
+            if (exampleBtn) {
+                exampleBtn.addEventListener('click', loadExample);
+            }
+            
+            // Botón para debug (si existe)
+            const debugBtn = document.getElementById('debugBtn');
+            if (debugBtn) {
+                debugBtn.addEventListener('click', debugMatrixData);
+            }
+            
+            // Permitir generar con Enter en el input de tamaño
+            document.getElementById('matrixSize').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    generateMatrix();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
