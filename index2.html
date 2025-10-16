@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Gauss-Jordan</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        .matrix-input {
+            display: grid;
+            gap: 5px;
+            margin: 15px 0;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .step {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-left: 3px solid #4CAF50;
+            background-color: #f0f8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Calculadora de Eliminación de Gauss-Jordan</h1>
+        
+        <div class="input-section">
+            <div>
+                <label for="matrixSize">Tamaño de la matriz (n x n):</label>
+                <input type="number" id="matrixSize" min="1" max="10" value="3">
+                <button id="setSizeBtn">Establecer Tamaño</button>
+            </div>
+            
+            <div id="matrixInputs"></div>
+            
+            <div>
+                <button id="calculateBtn">Calcular</button>
+            </div>
+        </div>
+        
+        <div class="result-section" id="results"></div>
+    </div>
+
+    <script>
+        // Variables globales
+        let matrixSize = 3;
+        let matrixInputs = [];
+        let resultsDiv;
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('setSizeBtn').addEventListener('click', setMatrixSize);
+            document.getElementById('calculateBtn').addEventListener('click', calculateGaussJordan);
+            resultsDiv = document.getElementById('results');
+            
+            // Establecer tamaño inicial
+            setMatrixSize();
+        });
+        
+        // Establecer el tamaño de la matriz y crear los inputs
+        function setMatrixSize() {
+            matrixSize = parseInt(document.getElementById('matrixSize').value);
+            if (matrixSize < 1 || matrixSize > 10) {
+                alert("El tamaño debe estar entre 1 y 10");
+                return;
+            }
+            
+            const matrixInputsDiv = document.getElementById('matrixInputs');
+            matrixInputsDiv.innerHTML = '';
+            
+            // Crear inputs para la matriz
+            const matrixContainer = document.createElement('div');
+            matrixContainer.className = 'matrix-input';
+            matrixContainer.style.gridTemplateColumns = `repeat(${matrixSize + 1}, 1fr)`;
+            
+            // Encabezados
+            for (let i = 0; i <= matrixSize; i++) {
+                const header = document.createElement('div');
+                header.style.fontWeight = 'bold';
+                header.style.textAlign = 'center';
+                if (i < matrixSize) {
+                    header.textContent = `x${i+1}`;
+                } else {
+                    header.textContent = 'b';
+                }
+                matrixContainer.appendChild(header);
+            }
+            
+            // Crear inputs para cada celda
+            matrixInputs = [];
+            for (let i = 0; i < matrixSize; i++) {
+                for (let j = 0; j <= matrixSize; j++) {
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.step = 'any';
+                    input.value = '0';
+                    input.dataset.row = i;
+                    input.dataset.col = j;
+                    matrixContainer.appendChild(input);
+                    matrixInputs.push(input);
+                }
+            }
+            
+            matrixInputsDiv.appendChild(matrixContainer);
+        }
+        
+        // Obtener la matriz de los inputs
+        function getMatrixFromInputs() {
+            const A = [];
+            const b = [];
+            
+            for (let i = 0; i < matrixSize; i++) {
+                const row = [];
+                for (let j = 0; j < matrixSize; j++) {
+                    const input = matrixInputs.find(input => 
+                        parseInt(input.dataset.row) === i && 
+                        parseInt(input.dataset.col) === j
+                    );
+                    row.push(parseFloat(input.value) || 0);
+                }
+                A.push(row);
+                
+                // Obtener el vector b
+                const bInput = matrixInputs.find(input => 
+                    parseInt(input.dataset.row) === i && 
+                    parseInt(input.dataset.col) === matrixSize
+                );
+                b.push(parseFloat(bInput.value) || 0);
+            }
+            
+            return { A, b };
+        }
+        
+        // Función principal de cálculo
+        function calculateGaussJordan() {
+            try {
+                const { A, b } = getMatrixFromInputs();
+                resultsDiv.innerHTML = '';
+                
+                // Mostrar matriz original
+                resultsDiv.innerHTML += 'Matriz original:\n';
+                resultsDiv.innerHTML += formatMatrix(A, b) + '\n\n';
+                
+                // Calcular determinante
+                const detMessage = obtenerDeterminante(A);
+                resultsDiv.innerHTML += detMessage + '\n\n';
+                
+                // Realizar eliminación de Gauss-Jordan
+                const matrizFinal = gaussJordan(A, b, matrixSize);
+                
+                // Mostrar matriz final
+                resultsDiv.innerHTML += 'Matriz final (RREF):\n';
+                resultsDiv.innerHTML += formatAugmentedMatrix(matrizFinal) + '\n\n';
+                
+                // Análisis de la solución
+                resultsDiv.innerHTML += '=== Análisis de la solución ===\n';
+                const analisis = analizar_y_resolver_desde_rref(matrizFinal, A, b);
+                mostrarAnalisis(analisis);
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            }
+        }
+        
+        // Función para mostrar el análisis de la solución
+        function mostrarAnalisis(analisis) {
+            if (analisis.estado === "única") {
+                resultsDiv.innerHTML += "Sistema con solución única.\n";
+                resultsDiv.innerHTML += "Solución: " + analisis.x.map(x => x.toFixed(6)).join(', ') + "\n";
+                resultsDiv.innerHTML += `Norma del residuo: ${analisis.norma_residuo.toFixed(10)}\n`;
+            } else if (analisis.estado === "infinitas") {
+                resultsDiv.innerHTML += "Sistema con infinitas soluciones.\n";
+                resultsDiv.innerHTML += "Solución particular: " + analisis.x_particular.map(x => x.toFixed(6)).join(', ') + "\n";
+                resultsDiv.innerHTML += "Variables libres: " + analisis.vars_libres.map(v => `x${v+1}`).join(', ') + "\n";
+                if (analisis.base_nucleo.length > 0) {
+                    resultsDiv.innerHTML += "Base del núcleo:\n";
+                    analisis.base_nucleo.forEach((vec, idx) => {
+                        resultsDiv.innerHTML += `  v${idx+1} = ${vec.map(x => x.toFixed(6)).join(', ')}\n`;
+                    });
+                }
+            } else if (analisis.estado === "inconsistente") {
+                resultsDiv.innerHTML += "Sistema inconsistente (sin solución).\n";
+                resultsDiv.innerHTML += `Filas conflictivas: ${analisis.filas_conflictivas.map(f => f+1).join(', ')}\n`;
+            }
+            
+            resultsDiv.innerHTML += `Rango de A: ${analisis.rango_A}\n`;
+            resultsDiv.innerHTML += `Rango de [A|b]: ${analisis.rango_Aum}\n`;
+        }
+        
+        // Función para formatear matriz aumentada
+        function formatAugmentedMatrix(matrix) {
+            let result = '';
+            for (let i = 0; i < matrix.length; i++) {
+                result += '[';
+                for (let j = 0; j < matrix[i].length; j++) {
+                    if (j === matrix[i].length - 1) {
+                        result += ' | ';
+                    }
+                    result += matrix[i][j].toFixed(4).padStart(8);
+                    if (j < matrix[i].length - 1 && j !== matrix[i].length - 2) {
+                        result += ', ';
+                    }
+                }
+                result += ' ]\n';
+            }
+            return result;
+        }
+        
+        // Función para formatear matriz y vector b
+        function formatMatrix(A, b) {
+            let result = '';
+            for (let i = 0; i < A.length; i++) {
+                result += '[';
+                for (let j = 0; j < A[i].length; j++) {
+                    result += A[i][j].toFixed(4).padStart(8);
+                    if (j < A[i].length - 1) {
+                        result += ', ';
+                    }
+                }
+                result += ' | ' + b[i].toFixed(4).padStart(8) + ' ]\n';
+            }
+            return result;
+        }
+        
+        // ========== IMPLEMENTACIÓN DE GAUSS-JORDAN ==========
+        
+        // Función para mover filas
+        function moverFilas(matriz_aumentada, indice_del_pivote, indice_de_la_matriz) {
+            let fila_temporal = [...matriz_aumentada[indice_de_la_matriz]];
+            matriz_aumentada[indice_de_la_matriz] = [...matriz_aumentada[indice_del_pivote]];
+            matriz_aumentada[indice_del_pivote] = fila_temporal;
+            return matriz_aumentada;
+        }
+        
+        // Función para generar columna actual
+        function generar_columna_actual(matriz_aumentada, columna, tamano) {
+            let columna_actual = [];
+            for (let i = 0; i < tamano; i++) {
+                columna_actual.push(matriz_aumentada[i][columna]);
+            }
+            return columna_actual;
+        }
+        
+        // Función de puntaje para selección de pivote
+        function puntaje(valor_abs) {
+            if (valor_abs < 0.1) {
+                return valor_abs * 0.1; // Penalizar valores muy pequeños
+            } else if (valor_abs > 100) {
+                return valor_abs * 0.5; // Penalizar valores muy grandes ligeramente
+            } else {
+                return valor_abs;
+            }
+        }
+        
+        // Función para obtener el pivote
+        function obtener_pivote(columna, fila_actual, tolerancia) {
+            let sub_columna = columna.slice(fila_actual);
+            
+            // Caso 1: hay un 1 ideal
+            for (let i = 0; i < sub_columna.length; i++) {
+                let valor_actual = Math.abs(sub_columna[i]) - 1.0;
+                if (Math.abs(valor_actual) < tolerancia) {
+                    return [fila_actual + i, sub_columna[i]];
+                }
+            }
+            
+            // Caso 2: enteros seguros
+            let enteros_seguros = [];
+            for (let i = 0; i < sub_columna.length; i++) {
+                if (Math.abs(sub_columna[i]) > tolerancia) {
+                    let valor = sub_columna[i];
+                    if (Number.isInteger(valor) && 0.5 < Math.abs(valor) && Math.abs(valor) < 10) {
+                        enteros_seguros.push([fila_actual + i, valor, Math.abs(valor)]);
+                    }
+                }
+            }
+            
+            if (enteros_seguros.length > 0) {
+                let minEntry = enteros_seguros[0];
+                for (let i = 1; i < enteros_seguros.length; i++) {
+                    if (enteros_seguros[i][2] < minEntry[2]) {
+                        minEntry = enteros_seguros[i];
+                    }
+                }
+                return [minEntry[0], minEntry[1]];
+            }
+            
+            // Caso 3: sistema de puntajes
+            let candidatos = [];
+            for (let i = 0; i < sub_columna.length; i++) {
+                if (Math.abs(sub_columna[i]) > tolerancia) {
+                    candidatos.push([fila_actual + i, sub_columna[i], Math.abs(sub_columna[i])]);
+                }
+            }
+            
+            if (candidatos.length === 0) {
+                return [null, null];
+            }
+            
+            candidatos.sort((a, b) => puntaje(b[2]) - puntaje(a[2]));
+            return [candidatos[0][0], candidatos[0][1]];
+        }
+        
+        // Función para normalizar el pivote
+        function normalizar_pivote(matriz_aumentada, indice_del_pivote, valor_del_pivote) {
+            for (let j = 0; j < matriz_aumentada[indice_del_pivote].length; j++) {
+                matriz_aumentada[indice_del_pivote][j] /= valor_del_pivote;
+            }
+            return matriz_aumentada;
+        }
+        
+        // Función para confirmar posición del pivote
+        function confirmar_posicion_del_pivote(matriz_aumentada, indice_del_pivote, columna_actual, numero_de_fila_o_columna_actual) {
+            if (indice_del_pivote !== numero_de_fila_o_columna_actual) {
+                return moverFilas(matriz_aumentada, indice_del_pivote, numero_de_fila_o_columna_actual);
+            }
+            return matriz_aumentada;
+        }
+        
+        // Función para eliminar valores arriba y abajo del pivote
+        function eliminar_el_resto_de_valores_tanto_arriba_como_abajo_del_pivote(matriz_aumentada, indice_del_pivote, numero_de_fila_o_columna_actual, tamano) {
+            let fila_del_pivote = [...matriz_aumentada[indice_del_pivote]];
+            for (let i = 0; i < tamano; i++) {
+                if (i !== indice_del_pivote) {
+                    let valor_indice_de_esa_fila = matriz_aumentada[i][numero_de_fila_o_columna_actual];
+                    for (let j = 0; j < matriz_aumentada[i].length; j++) {
+                        matriz_aumentada[i][j] += (-valor_indice_de_esa_fila) * fila_del_pivote[j];
+                    }
+                }
+            }
+            return matriz_aumentada;
+        }
+        
+        // Función para limpiar errores numéricos
+        function limpiar_errores_numericos(matriz, tolerancia = 1e-10) {
+            for (let i = 0; i < matriz.length; i++) {
+                for (let j = 0; j < matriz[i].length; j++) {
+                    if (Math.abs(matriz[i][j]) < tolerancia) {
+                        matriz[i][j] = 0;
+                    }
+                }
+            }
+            return matriz;
+        }
+        
+        // Función principal de Gauss-Jordan
+        function gaussJordan(matriz_base, matriz_resultados, tamano, tolerancia = 1e-10) {
+            // Crear matriz aumentada
+            let matriz_aumentada = [];
+            for (let i = 0; i < tamano; i++) {
+                let fila = [...matriz_base[i]];
+                fila.push(matriz_resultados[i]);
+                matriz_aumentada.push(fila);
+            }
+            
+            for (let n = 0; n < tamano; n++) {
+                let columna_actual = generar_columna_actual(matriz_aumentada, n, tamano);
+                let [indice_del_pivote, pivote_actual] = obtener_pivote(columna_actual, n, tolerancia);
+                
+                if (pivote_actual === null) continue;
+                
+                matriz_aumentada = confirmar_posicion_del_pivote(
+                    matriz_aumentada, indice_del_pivote, columna_actual, n
+                );
+                
+                matriz_aumentada = normalizar_pivote(matriz_aumentada, n, pivote_actual);
+                matriz_aumentada = eliminar_el_resto_de_valores_tanto_arriba_como_abajo_del_pivote(
+                    matriz_aumentada, n, n, tamano
+                );
+                matriz_aumentada = limpiar_errores_numericos(matriz_aumentada, tolerancia);
+            }
+            
+            return matriz_aumentada;
+        }
+        
+        // Función para obtener el determinante
+        function obtenerDeterminante(matriz) {
+            // Implementación simplificada del determinante
+            let n = matriz.length;
+            if (n === 1) return matriz[0][0];
+            if (n === 2) return matriz[0][0] * matriz[1][1] - matriz[0][1] * matriz[1][0];
+            
+            let det = 0;
+            for (let j = 0; j < n; j++) {
+                let submatriz = [];
+                for (let i = 1; i < n; i++) {
+                    let fila = [];
+                    for (let k = 0; k < n; k++) {
+                        if (k !== j) fila.push(matriz[i][k]);
+                    }
+                    submatriz.push(fila);
+                }
+                det += matriz[0][j] * Math.pow(-1, j) * obtenerDeterminante(submatriz);
+            }
+            
+            let mensaje = `El determinante es igual a ${det.toFixed(6)}\n`;
+            if (det !== 0) {
+                mensaje += "Con base a este valor, es de única solución";
+            } else {
+                mensaje += "Ya que el determinante es igual a 0, es de ninguna o infinitas soluciones";
+            }
+            return mensaje;
+        }
+        
+        // Función para analizar la solución desde la RREF
+        function analizar_y_resolver_desde_rref(matriz_aumentada, A, b, tolerancia = 1e-10) {
+            let n_filas = matriz_aumentada.length;
+            let n_cols = matriz_aumentada[0].length;
+            let n = n_cols - 1; // número de variables
+            
+            // Bloque izquierdo (A reducida) y término independiente
+            let L = [];
+            let rhs = [];
+            for (let i = 0; i < n_filas; i++) {
+                L.push(matriz_aumentada[i].slice(0, n));
+                rhs.push(matriz_aumentada[i][n]);
+            }
+            
+            // Comprobar inconsistencia
+            let filas_inconsistentes = [];
+            for (let i = 0; i < n_filas; i++) {
+                let todosCeros = true;
+                for (let j = 0; j < n; j++) {
+                    if (Math.abs(L[i][j]) > tolerancia) {
+                        todosCeros = false;
+                        break;
+                    }
+                }
+                if (todosCeros && Math.abs(rhs[i]) > tolerancia) {
+                    filas_inconsistentes.push(i);
+                }
+            }
+            
+            if (filas_inconsistentes.length > 0) {
+                return {
+                    estado: "inconsistente",
+                    filas_conflictivas: filas_inconsistentes,
+                    rango_A: calcularRango(A),
+                    rango_Aum: calcularRango([...A.map((fila, i) => [...fila, b[i]])])
+                };
+            }
+            
+            // Identificar columnas pivote
+            let filas_pivote = [];
+            let cols_pivote = [];
+            for (let i = 0; i < n_filas; i++) {
+                for (let j = 0; j < n; j++) {
+                    if (Math.abs(L[i][j]) > tolerancia) {
+                        if (!cols_pivote.includes(j)) {
+                            cols_pivote.push(j);
+                            filas_pivote.push(i);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            // Solución única
+            if (cols_pivote.length === n) {
+                let x = [...rhs];
+                let residuo = calcularResiduo(A, x, b);
+                let norma_residuo = Math.sqrt(residuo.reduce((sum, val) => sum + val * val, 0));
+                
+                return {
+                    estado: "única",
+                    x: x,
+                    rango_A: cols_pivote.length,
+                    rango_Aum: cols_pivote.length,
+                    norma_residuo: norma_residuo
+                };
+            }
+            
+            // Infinitas soluciones
+            let vars_libres = [];
+            for (let j = 0; j < n; j++) {
+                if (!cols_pivote.includes(j)) {
+                    vars_libres.push(j);
+                }
+            }
+            
+            // Solución particular
+            let x_particular = Array(n).fill(0);
+            for (let idx = 0; idx < filas_pivote.length; idx++) {
+                let r = filas_pivote[idx];
+                let c = cols_pivote[idx];
+                x_particular[c] = rhs[r];
+            }
+            
+            // Base del núcleo
+            let base_nucleo = [];
+            for (let f of vars_libres) {
+                let v = Array(n).fill(0);
+                v[f] = 1.0;
+                for (let idx = 0; idx < filas_pivote.length; idx++) {
+                    let r = filas_pivote[idx];
+                    let c = cols_pivote[idx];
+                    v[c] = -L[r][f];
+                }
+                base_nucleo.push(v);
+            }
+            
+            let residuo_p = calcularResiduo(A, x_particular, b);
+            let norma_residuo_p = Math.sqrt(residuo_p.reduce((sum, val) => sum + val * val, 0));
+            
+            return {
+                estado: "infinitas",
+                x_particular: x_particular,
+                base_nucleo: base_nucleo,
+                vars_libres: vars_libres,
+                rango_A: cols_pivote.length,
+                rango_Aum: cols_pivote.length,
+                norma_residuo_particular: norma_residuo_p
+            };
+        }
+        
+        // Función auxiliar para calcular residuo
+        function calcularResiduo(A, x, b) {
+            let residuo = [];
+            for (let i = 0; i < A.length; i++) {
+                let suma = 0;
+                for (let j = 0; j < A[i].length; j++) {
+                    suma += A[i][j] * x[j];
+                }
+                residuo.push(suma - b[i]);
+            }
+            return residuo;
+        }
+        
+        // Función auxiliar para calcular rango (simplificada)
+        function calcularRango(matriz) {
+            // Implementación simplificada - en un caso real usaríamos eliminación gaussiana
+            let noCeros = 0;
+            for (let i = 0; i < matriz.length; i++) {
+                for (let j = 0; j < matriz[i].length; j++) {
+                    if (Math.abs(matriz[i][j]) > 1e-10) {
+                        noCeros++;
+                        break;
+                    }
+                }
+            }
+            return noCeros;
+        }
+    </script>
+</body>
+</html>
